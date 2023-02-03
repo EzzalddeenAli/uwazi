@@ -3,6 +3,7 @@ import Ajv from 'ajv';
 import { createError } from 'api/utils/index';
 import { appContext } from 'api/utils/AppContext';
 import { UnauthorizedError } from 'api/authorization.v2/errors/UnauthorizedError';
+import { logger } from 'api/log/logger';
 
 const ajvPrettifier = error => {
   const errorMessage = [error.message];
@@ -154,6 +155,7 @@ const handleError = (_error, { req = undefined, uncaught = false, useContext = t
     result = setRequestId(result);
   }
 
+  logger.error(_error);
   sendLog(result, error, {});
 
   return simplifyError(result, error);
