@@ -190,6 +190,7 @@ const update = async (translation: TranslationType | IndexedTranslations) => {
 
 export default {
   prepareContexts,
+  //missing
   async get(query = {}) {
     const translations = await model.get(query);
     return translations.map(
@@ -215,22 +216,6 @@ export default {
     await createTranslationsV2(translationToSave);
 
     return model.save(translationToSave);
-  },
-
-  async addEntry(contextId: string, key: string, defaultValue: string) {
-    const result = await model.get();
-    await Promise.all(
-      result.map(async translation => {
-        const context = (translation.contexts || []).find(ctx => ctx.id === contextId);
-        if (!context) {
-          return Promise.resolve();
-        }
-        context.values = context.values || [];
-        context.values.push({ key, value: defaultValue });
-        return this.save(translation);
-      })
-    );
-    return 'ok';
   },
 
   async updateEntries(
@@ -368,6 +353,7 @@ export default {
     return 'ok';
   },
 
+  // missing
   async addLanguage(locale: string) {
     const [languageTranslationAlreadyExists] = await model.get({ locale });
     if (languageTranslationAlreadyExists) {
