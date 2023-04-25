@@ -1,12 +1,13 @@
+/* eslint-disable react/jsx-props-no-spreading */
 /* eslint-disable max-lines */
 /* eslint-disable max-statements */
 import { Translate } from 'app/I18N';
-import React, { createRef, LegacyRef, useState } from 'react';
+import React, { useState, useRef, Ref, useEffect } from 'react';
 import { FieldArrayWithId, useFieldArray, useForm } from 'react-hook-form';
 import ReactPlayer from 'react-player';
 import { Icon } from 'UI';
 
-export interface MarkdownMediaProps {
+interface MarkdownMediaProps {
   compact?: boolean;
   editing?: boolean;
   onTimeLinkAdded?: Function;
@@ -53,17 +54,20 @@ const formatTimeLinks = (timelinks: any): TimeLink[] =>
   });
 
 const MarkdownMedia = (props: MarkdownMediaProps) => {
+  const playerRef: Ref<ReactPlayer> | undefined = useRef(null);
+
   const [newTimeline, setNewTimeline] = useState<TimeLink>({
     timeHours: '00',
     timeMinutes: '00',
     timeSeconds: '00',
     label: '',
   });
+  const [errorFlag, setErrorFlag] = useState(false);
   const { options } = propsToConfig(props);
   const originalTimelinks = formatTimeLinks(options?.timelinks || {});
   const [playingTimelinkIndex, setPlayingTimelinkIndex] = useState<number>(-1);
   const [isVideoPlaying, setVideoPlaying] = useState<boolean>(false);
-
+  const [mediaURL, setMediaURL] = useState('');
   const { control, register, getValues } = useForm<{ timelines: TimeLink[] }>({
     defaultValues: { timelines: originalTimelinks },
   });
@@ -72,26 +76,16 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
     name: 'timelines',
   });
 
-  const playerRef: LegacyRef<ReactPlayer> | undefined = createRef();
-
   const seekTo = (seconds: number) => {
     const playingStatus = isVideoPlaying;
     playerRef.current?.seekTo(seconds);
     setVideoPlaying(playingStatus);
   };
 
-  const constructTimelinksString = (timelinks: TimeLink[], url: string) => {
-    const timelinksObj = timelinks.reduce((current: any, timelink) => {
-      current[`${timelink.timeHours}:${timelink.timeMinutes}:${timelink.timeSeconds}`] =
-        timelink.label;
-      return current;
-    }, {});
-    return `(${url}, ${JSON.stringify({ timelinks: timelinksObj })})`;
-  };
-
   const timeLinks = (_timelinks: any) => {
     const timelinks = _timelinks || {};
     return Object.keys(timelinks).map((timeKey, index) => {
+      const linkIndex = index;
       const seconds = timeKey
         .split(':')
         .reverse()
@@ -108,22 +102,22 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
             className="timelink-icon"
             onClick={() => {
               seekTo(seconds);
-              if (index === playingTimelinkIndex) {
+              if (linkIndex === playingTimelinkIndex) {
                 setVideoPlaying(false);
                 setPlayingTimelinkIndex(-1);
               } else {
                 setVideoPlaying(true);
-                setPlayingTimelinkIndex(index);
+                setPlayingTimelinkIndex(linkIndex);
               }
             }}
           >
-            <Icon icon={index === playingTimelinkIndex ? 'pause' : 'play'} />
+            <Icon icon={linkIndex === playingTimelinkIndex ? 'pause' : 'play'} />
           </b>
           <div
             className="timelink-time-label"
             onClick={() => {
               seekTo(seconds);
-              setPlayingTimelinkIndex(index);
+              setPlayingTimelinkIndex(linkIndex);
             }}
           >
             <b>{displayTime}</b>
@@ -134,18 +128,17 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
     });
   };
 
-  const updateParentForm = (url: string) => {
-    const fullTimelinksString = constructTimelinksString(getValues().timelines, url);
-    if (props.onTimeLinkAdded) props.onTimeLinkAdded(fullTimelinksString);
+  const updateParentForm = () => {
+    if (props.onTimeLinkAdded) props.onTimeLinkAdded(getValues().timelines);
   };
 
-  const appendTimelinkAndUpdateParent = (url: string, timelink?: TimeLink) => {
+  const appendTimelinkAndUpdateParent = (timelink?: TimeLink) => {
     const currentTimelink = timelink || newTimeline;
     append(currentTimelink);
-    updateParentForm(url);
+    updateParentForm();
   };
 
-  const renderNewTimeLinkForm = (url: string) => (
+  const renderNewTimeLinkForm = () => (
     <div className="new-timelink">
       <div className="timestamp">
         <input
@@ -194,7 +187,7 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
         type="button"
         className="new-timestamp-btn"
         onClick={() => {
-          appendTimelinkAndUpdateParent(url);
+          appendTimelinkAndUpdateParent(newTimeline);
           setNewTimeline({ timeHours: '00', timeMinutes: '00', timeSeconds: '00', label: '' });
         }}
       >
@@ -203,20 +196,16 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
     </div>
   );
 
-  const renderSingleTimeLinkInputs = (
-    field: FieldArrayWithId<TimeLink>,
-    url: string,
-    index: number
-  ) => (
+  const renderSingleTimeLinkInputs = (field: FieldArrayWithId<TimeLink>, index: number) => (
     <div className="new-timelink" key={index}>
       <div className="timestamp">
         <input
           type="text"
           className="timestamp-hours"
           placeholder="00"
-          key={field.id}
+          key={`${field.id}hours`}
           {...register(`timelines.${index}.timeHours`, {
-            onChange: _ => updateParentForm(url),
+            onChange: _ => updateParentForm(),
           })}
         />
         <span className="seperator">:</span>
@@ -224,9 +213,9 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
           type="text"
           className="timestamp-minutes"
           placeholder="00"
-          key={field.id}
+          key={`${field.id}minutes`}
           {...register(`timelines.${index}.timeMinutes`, {
-            onChange: _ => updateParentForm(url),
+            onChange: _ => updateParentForm(),
           })}
         />
         <span className="seperator">:</span>
@@ -234,9 +223,9 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
           type="text"
           className="timestamp-seconds"
           placeholder="00"
-          key={field.id}
+          key={`${field.id}seconds`}
           {...register(`timelines.${index}.timeSeconds`, {
-            onChange: _ => updateParentForm(url),
+            onChange: _ => updateParentForm(),
           })}
         />
       </div>
@@ -246,7 +235,7 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
         placeholder="Enter title"
         key={field.id}
         {...register(`timelines.${index}.label`, {
-          onChange: _ => updateParentForm(url),
+          onChange: _ => updateParentForm(),
         })}
       />
       <button
@@ -255,7 +244,7 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
         className="delete-timestamp-btn"
         onClick={() => {
           remove(index);
-          updateParentForm(url);
+          updateParentForm();
         }}
       >
         <Icon icon="trash-alt" />
@@ -263,20 +252,45 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
     </div>
   );
 
-  const renderTimeLinksForm = (url: string) => (
+  const renderTimeLinksForm = () => (
     <>
       {fields.map((field: FieldArrayWithId<TimeLink>, index: number) =>
-        renderSingleTimeLinkInputs(field, url, index)
+        renderSingleTimeLinkInputs(field, index)
       )}
-      {renderNewTimeLinkForm(url)}
+      {renderNewTimeLinkForm()}
     </>
   );
 
   const config = propsToConfig(props);
+  useEffect(() => {
+    if (config.url) {
+      fetch(config.url)
+        .then(async res => res.blob())
+        .then(blob => {
+          setErrorFlag(false);
+          setMediaURL(URL.createObjectURL(blob));
+        })
+        .catch(_e => {});
+    }
+
+    return () => {
+      setErrorFlag(false);
+      return URL.revokeObjectURL(mediaURL);
+    };
+  }, [config.url]);
+
   const { compact, editing } = props;
   const dimensions: { width: string; height?: string } = { width: '100%' };
   if (compact) {
     dimensions.height = '100%';
+  }
+
+  if (errorFlag) {
+    return (
+      <div className="media-error">
+        <Translate>This file type is not supported on media fields</Translate>
+      </div>
+    );
   }
 
   return (
@@ -286,7 +300,7 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
           className="react-player"
           playing={isVideoPlaying}
           ref={playerRef}
-          url={config.url}
+          url={mediaURL}
           {...dimensions}
           controls
           onPause={() => {
@@ -295,8 +309,15 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
           onPlay={() => {
             setVideoPlaying(true);
           }}
+          onError={e => {
+            if (e.target.error.message.search(/MEDIA_ELEMENT_ERROR/) === -1) {
+              setMediaURL('');
+              setErrorFlag(true);
+            }
+          }}
         />
       </div>
+
       {!editing && <div>{timeLinks(config.options.timelinks)}</div>}
       {editing && (
         <div className="timelinks-form">
@@ -315,7 +336,7 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
                 timeSeconds: seconds < 10 ? `0${seconds.toString()}` : seconds.toString(),
                 label: '',
               };
-              appendTimelinkAndUpdateParent(config.url, timelink);
+              appendTimelinkAndUpdateParent(timelink);
             }}
           >
             <Translate>Add timelink</Translate>
@@ -323,7 +344,7 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
           <h5>
             <Translate>Timelinks</Translate>
           </h5>
-          {renderTimeLinksForm(config.url)}
+          {renderTimeLinksForm()}
         </div>
       )}
       <p className="print-view-alt">{config.url}</p>
@@ -331,4 +352,5 @@ const MarkdownMedia = (props: MarkdownMediaProps) => {
   );
 };
 
+export type { TimeLink, MarkdownMediaProps };
 export default MarkdownMedia;

@@ -11,6 +11,7 @@ import { goToRestrictedEntities } from '../helpers/publishedFilter';
 import { refreshIndex } from '../helpers/elastichelpers';
 import { checkStringValuesInSelectors, getContentBySelector } from '../helpers/selectorUtils';
 import { changeLanguage } from '../helpers/changeLanguage';
+import { host } from '../config';
 
 const entityTitle = 'Entity with supporting files';
 const webAttachments = {
@@ -39,8 +40,8 @@ const addSupportingFile = async (filePath: string) => {
   await uploadSupportingFileToEntity(filePath);
 };
 
-const saveEntityAndClosePanel = async () => {
-  await expect(page).toClick('button', { text: 'Save' });
+const saveEntityAndClosePanel = async (text?: string) => {
+  await expect(page).toClick('button', { text: text || 'Save' });
   await expect(page).toClick('.alert.alert-success');
   await refreshIndex();
   await expect(page).toClick('.is-active button.closeSidepanel');
@@ -142,16 +143,19 @@ describe('Entities', () => {
         '#metadataForm > div:nth-child(3) > div.form-group.media > ul > li.wide > div > div > div > button'
       );
       await uploadFileInMetadataField(
-        `${__dirname}/../test_files/short-video.mp4`,
+        `${__dirname}/../test_files/short-video.webm`,
         'input[aria-label=fileInput]'
       );
       await saveEntityAndClosePanel();
     });
 
     it('should check the entity', async () => {
+      await page.goto(`${host}/library`);
+      await goToRestrictedEntities();
       await expect(page).toClick('.item-name span', {
         text: 'Entity with media files',
       });
+      await page.waitForSelector('#tabpanel-metadata video');
       await expect(page).toMatchElement('.metadata-name-descripci_n > dd > div > p', {
         text: 'A description of the report',
       });
@@ -167,11 +171,11 @@ describe('Entities', () => {
 
       await checkStringValuesInSelectors([
         { selector: fotografiaFieldSource, expected: /^\/api\/files\/\w+\.jpg$/ },
-        { selector: videoFieldSource, expected: /^\/api\/files\/\w+\.mp4$/ },
+        { selector: videoFieldSource, expected: /^blob:http:\/\/localhost:3000\/[\w-]+$/ },
       ]);
 
       const fileList = await getContentBySelector('.attachment-name span:not(.attachment-size)');
-      expect(fileList).toEqual(['batman.jpg', 'short-video.mp4']);
+      expect(fileList).toEqual(['batman.jpg', 'short-video.webm']);
     });
   });
 
@@ -314,7 +318,7 @@ describe('Entities', () => {
 
       await expect(page).toClick('.multiselectItem-name', { text: 'Argentina' });
 
-      await saveEntityAndClosePanel();
+      await saveEntityAndClosePanel('Guardar');
     });
 
     it('should check the values for the entity in Spanish', async () => {

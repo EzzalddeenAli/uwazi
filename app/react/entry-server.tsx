@@ -2,10 +2,7 @@
 import { Request as ExpressRequest, Response } from 'express';
 // eslint-disable-next-line node/no-restricted-import
 import fs from 'fs';
-import {
-  AgnosticDataRouteObject,
-  unstable_createStaticHandler as createStaticHandler,
-} from '@remix-run/router';
+import { AgnosticDataRouteObject, createStaticHandler } from '@remix-run/router';
 import api from 'app/utils/api';
 import { RequestParams } from 'app/utils/RequestParams';
 import { omit } from 'lodash';
@@ -14,20 +11,17 @@ import ReactDOMServer from 'react-dom/server';
 import { Helmet } from 'react-helmet';
 import { Provider } from 'react-redux';
 import { matchRoutes, RouteObject } from 'react-router-dom';
-import {
-  unstable_createStaticRouter as createStaticRouter,
-  unstable_StaticRouterProvider as StaticRouterProvider,
-} from 'react-router-dom/server';
+import { createStaticRouter, StaticRouterProvider } from 'react-router-dom/server';
 import { RecoilRoot } from 'recoil';
 import { FetchResponseError } from 'shared/JSONRequest';
 import { Settings } from 'shared/types/settingsType';
-import translationsApi from '../api/i18n/translations';
+import translationsApi, { IndexedTranslations } from '../api/i18n/translations';
 import settingsApi from '../api/settings/settings';
 import CustomProvider from './App/Provider';
 import Root from './App/Root';
 import RouteHandler from './App/RouteHandler';
 import { I18NUtils, t, Translate } from './I18N';
-import { ClientTranslationSchema, IStore } from './istore';
+import { IStore } from './istore';
 import { getRoutes } from './Routes';
 import createStore from './store';
 
@@ -38,7 +32,7 @@ class ServerRenderingFetchError extends Error {
   }
 }
 
-const onlySystemTranslations = (translations: ClientTranslationSchema[]) => {
+const onlySystemTranslations = (translations: IndexedTranslations[]) => {
   const rows = translations.map(translation => {
     const systemTranslation = translation?.contexts?.find(c => c.id === 'System');
     return { ...translation, contexts: [systemTranslation] };
