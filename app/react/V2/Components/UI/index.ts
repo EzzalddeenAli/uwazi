@@ -6,6 +6,7 @@ import { Table } from './Table';
 import { ToggleButton } from './ToggleButton';
 import { InputField } from './InputField';
 import { NotificationsContainer } from './NotificationsContainer';
+import { SearchMultiselect } from './SearchMultiSelect';
 
 export {
   Button,
@@ -16,4 +17,5 @@ export {
   ToggleButton,
   InputField,
   NotificationsContainer,
+  SearchMultiselect,
 };
