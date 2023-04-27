@@ -3,50 +3,37 @@
  */
 import React from 'react';
 import { MutableSnapshot, RecoilRoot } from 'recoil';
-import { screen, RenderResult, fireEvent } from '@testing-library/react';
+import { screen, RenderResult, fireEvent, within, act } from '@testing-library/react';
 import { defaultState, renderConnectedContainer } from 'app/utils/test/renderConnected';
 import { I18NApi } from 'app/I18N';
 import { settingsAtom } from 'app/V2/atoms/settingsAtom';
 import { Settings } from 'shared/types/settingsType';
+import * as useApiCaller from 'app/V2/CustomHooks/useApiCaller';
 import { LanguagesList } from '../LanguagesList';
 
-const abkhazianLanguage = {
-  label: 'Abkhazian',
-  key: 'ab',
-  ISO639_3: 'abk',
-  localized_label: 'Abkhazian',
-  translationAvailable: false,
-};
+const languageDefinition = (
+  label: string,
+  key: string,
+  ISO639_3: string,
+  // eslint-disable-next-line camelcase
+  localized_label: string,
+  translationAvailable: boolean = false
+  // eslint-disable-next-line max-params
+) => ({
+  label,
+  key,
+  ISO639_3,
+  // eslint-disable-next-line camelcase
+  localized_label,
+  translationAvailable,
+});
+const abkhazianLanguage = languageDefinition('Abkhazian', 'ab', 'abk', 'Abkhazian');
 const availableLanguages = [
   { ...abkhazianLanguage },
-  {
-    label: 'English',
-    key: 'en',
-    ISO639_3: 'eng',
-    localized_label: 'English',
-    translationAvailable: false,
-  },
-  {
-    label: 'Spanish',
-    key: 'es',
-    ISO639_3: 'spa',
-    localized_label: 'Español',
-    translationAvailable: true,
-  },
-  {
-    label: 'Afar',
-    key: 'aa',
-    ISO639_3: 'aar',
-    localized_label: 'Afar',
-    translationAvailable: false,
-  },
-  {
-    label: 'Thai',
-    key: 'th',
-    ISO639_3: 'tha',
-    localized_label: 'ไทย',
-    translationAvailable: true,
-  },
+  { ...languageDefinition('English', 'en', 'eng', 'English') },
+  { ...languageDefinition('Spanish', 'es', 'spa', 'Spanish', true) },
+  { ...languageDefinition('Afar', 'aa', 'aar', 'Afar') },
+  { ...languageDefinition('Thai', 'th', 'tha', 'ไทย', true) },
 ];
 
 const currentLanguages = [
@@ -65,10 +52,6 @@ jest.mock('react-router-dom', () => ({
 describe('LanguagesList', () => {
   let renderResult: RenderResult;
 
-  beforeEach(() => {
-    spyOn(I18NApi, 'setDefaultLanguage').and.callFake(async () => Promise.resolve({}));
-  });
-
   const recoilGlobalState = ({ set }: MutableSnapshot) => {
     const settings: Partial<Settings> = { languages: currentLanguages };
     set(settingsAtom, settings);
@@ -82,9 +65,17 @@ describe('LanguagesList', () => {
       () => defaultState
     ));
   };
-
   let rows: HTMLElement[];
-  beforeAll(() => {
+
+  const requestActionMock = jest.fn();
+
+  beforeEach(() => {
+    spyOn(I18NApi, 'setDefaultLanguage').and.callFake(async () => Promise.resolve({}));
+    spyOn(useApiCaller, 'useApiCaller').and.callFake(() => ({
+      requestAction: requestActionMock,
+      data: undefined,
+      error: '',
+    }));
     render();
     rows = screen.getAllByRole('row');
   });
@@ -94,31 +85,103 @@ describe('LanguagesList', () => {
       expect(rows[1].children[0].textContent).toEqual('Arabic (ar)');
       expect(rows[2].children[0].textContent).toEqual('English (en)');
       expect(rows[3].children[0].textContent).toEqual('Spanish (es)');
+
       expect(renderResult.container).toMatchSnapshot();
     });
+    const checkButtonState = (row: number, column: number, status: string) => {
+      expect(rows[row].children[column].getElementsByTagName('button')[0].className).toContain(
+        status
+      );
+    };
+    const checkButtonDefinition = (row: number, column: number, count: number) => {
+      expect(rows[row].children[column].getElementsByTagName('button').length).toBe(count);
+    };
     it('should highlight the default language', () => {
-      expect(rows[1].children[1].getElementsByTagName('button')[0].className).toContain('disabled');
-      expect(rows[2].children[1].getElementsByTagName('button')[0].className).toContain('disabled');
-      expect(rows[3].children[1].getElementsByTagName('button')[0].className).toContain('enabled');
+      checkButtonState(1, 1, 'disabled');
+      checkButtonState(2, 1, 'disabled');
+      checkButtonState(3, 1, 'enabled');
     });
     it('should allow reset a language if there are translations available', () => {
-      expect(rows[1].children[2].getElementsByTagName('button').length).toBe(0);
-      expect(rows[2].children[2].getElementsByTagName('button').length).toBe(0);
-      expect(rows[3].children[2].getElementsByTagName('button').length).toBe(1);
+      checkButtonDefinition(1, 2, 0);
+      checkButtonDefinition(2, 2, 0);
+      checkButtonDefinition(3, 2, 1);
     });
     it('should allow uninstalling any language except default', () => {
-      expect(rows[1].children[3].getElementsByTagName('button').length).toBe(1);
-      expect(rows[2].children[3].getElementsByTagName('button').length).toBe(1);
-      expect(rows[3].children[3].getElementsByTagName('button').length).toBe(0);
+      checkButtonDefinition(1, 3, 1);
+      checkButtonDefinition(2, 3, 1);
+      checkButtonDefinition(3, 3, 0);
     });
   });
 
   describe('actions', () => {
-    it('should set a language as default', () => {
-      fireEvent.click(rows[1].children[1].getElementsByTagName('button')[0]);
-      expect(I18NApi.setDefaultLanguage).toHaveBeenCalledWith({ data: { key: 'ar' }, headers: {} });
+    it('should reset a language', async () => {
+      await act(async () => {
+        fireEvent.click(within(rows[3].children[2] as HTMLElement).getByRole('button'));
+      });
+      await act(async () => {
+        fireEvent.change(screen.getByRole('textbox'), {
+          target: { value: 'CONFIRM' },
+        });
+        fireEvent.click(within(screen.getByTestId('modal')).getByRole('button', { name: 'Reset' }));
+        expect(requestActionMock).toHaveBeenCalledWith(
+          I18NApi.populateTranslations,
+          {
+            data: { locale: 'es' },
+            headers: {},
+          },
+          'Language reset success'
+        );
+      });
     });
 
-    it.todo('should notity success action');
+    it('should set a language as default', async () => {
+      await act(() => {
+        fireEvent.click(rows[1].children[1].getElementsByTagName('button')[0]);
+      });
+      expect(requestActionMock).toHaveBeenCalledWith(
+        I18NApi.setDefaultLanguage,
+        {
+          data: { key: 'ar' },
+          headers: {},
+        },
+        'Default language change success'
+      );
+    });
+    it('should allow to cancel an action', async () => {
+      await act(async () => {
+        fireEvent.click(within(rows[1].children[3] as HTMLElement).getByRole('button'));
+      });
+      await act(async () => {
+        fireEvent.change(screen.getByRole('textbox'), {
+          target: { value: 'CONFIRM' },
+        });
+        fireEvent.click(
+          within(screen.getByTestId('modal')).getByRole('button', { name: 'No, cancel' })
+        );
+        expect(requestActionMock).not.toHaveBeenCalledWith();
+      });
+    });
+
+    it('should uninstall a language', async () => {
+      await act(async () => {
+        fireEvent.click(within(rows[2].children[3] as HTMLElement).getByRole('button'));
+      });
+      await act(async () => {
+        fireEvent.change(screen.getByRole('textbox'), {
+          target: { value: 'CONFIRM' },
+        });
+        fireEvent.click(
+          within(screen.getByTestId('modal')).getByRole('button', { name: 'Uninstall' })
+        );
+        expect(requestActionMock).toHaveBeenCalledWith(
+          I18NApi.deleteLanguage,
+          {
+            data: { key: 'en' },
+            headers: {},
+          },
+          'Language uninstalled success'
+        );
+      });
+    });
   });
 });
