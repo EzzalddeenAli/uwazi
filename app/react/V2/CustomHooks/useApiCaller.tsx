@@ -1,39 +1,62 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useSetRecoilState } from 'recoil';
 import { Translate } from 'app/I18N';
 import { notificationAtom } from 'V2/atoms';
 import { RequestParams } from 'app/utils/RequestParams';
 
+interface ApiCallerResult {
+  data?: Promise<any | undefined>;
+  error?: Promise<string | undefined>;
+}
+const getData = async (res: Response) => (res.json ? res.json() : res);
+const getError = async (res: Response) => {
+  const json = res.json ? await res.json() : undefined;
+  return json && json.error ? json.error : new Error('An error occurred');
+};
+
 const useApiCaller = () => {
-  const [data, setdata] = useState<any>();
-  const [error, seterror] = useState('');
   const setNotifications = useSetRecoilState(notificationAtom);
+
+  const handleSuccess = async (res: Response, successAction: string) => {
+    setNotifications({
+      type: 'success',
+      text: <Translate>{successAction}</Translate>,
+    });
+    return getData(res);
+  };
+
+  const handleError = async (e: Error) => {
+    setNotifications({
+      type: 'error',
+      text: <Translate>An error occurred</Translate>,
+      details: <span>{e.message}</span>,
+    });
+    return e.message;
+  };
 
   const requestAction = async (
     action: (params: RequestParams) => Promise<Response>,
     requestParams: RequestParams,
     successAction: string
-  ) => {
+  ): Promise<ApiCallerResult> => {
+    let data;
+    let error;
     try {
-      const res = await action(requestParams);
+      const res: Response = await action(requestParams);
       if (!res.status || res.status === 200) {
-        setdata(res.json ? res.json() : res);
+        data = handleSuccess(res, successAction);
+      } else {
+        error = handleError(await getError(res));
       }
-      setNotifications({
-        type: 'success',
-        text: <Translate>{successAction}</Translate>,
-      });
     } catch (e) {
-      seterror(e.message);
-      setNotifications({
-        type: 'error',
-        text: <Translate>An error occurred</Translate>,
-        details: <span>{e.message}</span>,
-      });
+      error = handleError(e);
     }
+    const result1: ApiCallerResult = { data, error: Promise.resolve(error) };
+    return result1;
   };
 
-  return { data, error, requestAction };
+  return { requestAction };
 };
 
+export type { ApiCallerResult };
 export { useApiCaller };
