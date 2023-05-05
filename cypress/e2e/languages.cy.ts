@@ -73,12 +73,12 @@ describe('Languages', () => {
       cy.contains('table', '(view page)').contains('tr', 'Español').find('input').clear();
       cy.contains('table', '(view page)').contains('tr', 'Español').find('input').type('test');
       cy.contains('button', 'Save').click();
-      cy.wait('@saveTranslation');
+      cy.contains('Translations saved');
     });
 
     it('should reset the spanish language', () => {
-      cy.contains('span', 'Languages').click();
       cy.intercept('POST', 'api/translations/populate').as('resetLanguage');
+      cy.contains('a span', 'Languages').click();
       cy.contains('tr', 'Spanish').contains('button', 'Reset').click();
       cy.get('[data-testid=modal] input').type('CONFIRM');
       cy.contains('[data-testid=modal] button', 'Reset').click();
